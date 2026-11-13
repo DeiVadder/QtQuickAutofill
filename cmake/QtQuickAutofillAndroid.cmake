@@ -8,7 +8,8 @@
 # points the target at it. Your source tree is not modified.
 #
 # Call it after qt_add_executable(). Without PACKAGE_SOURCE_DIR it uses the target's current
-# QT_ANDROID_PACKAGE_SOURCE_DIR, if any. Re-run CMake after changing files in your package source directory.
+# QT_ANDROID_PACKAGE_SOURCE_DIR, if any. Call it once per target. The files are copied when CMake runs: re-run CMake
+# after adding files to your package source directory (changes to existing files trigger it automatically).
 
 set(QTQUICKAUTOFILL_ANDROID_JAVA_DIR "${CMAKE_CURRENT_LIST_DIR}/../src/android" CACHE INTERNAL "")
 
@@ -24,6 +25,12 @@ function(qtquickautofill_configure_android target)
     endif()
 
     set(merged_dir "${CMAKE_CURRENT_BINARY_DIR}/${target}_qtquickautofill_android")
+    if(user_dir)
+        get_filename_component(user_dir "${user_dir}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
+    if(user_dir STREQUAL merged_dir)
+        message(FATAL_ERROR "qtquickautofill_configure_android(${target}) was already called for this target")
+    endif()
     file(REMOVE_RECURSE "${merged_dir}")
     file(MAKE_DIRECTORY "${merged_dir}/src")
 

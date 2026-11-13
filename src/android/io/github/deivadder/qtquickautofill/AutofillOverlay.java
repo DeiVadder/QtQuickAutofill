@@ -8,6 +8,7 @@ package io.github.deivadder.qtquickautofill;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Rect;
+import android.os.Build;
 import android.text.InputType;
 import android.util.Log;
 import android.util.SparseArray;
@@ -16,6 +17,8 @@ import android.view.ViewGroup;
 import android.view.ViewStructure;
 import android.view.autofill.AutofillManager;
 import android.view.autofill.AutofillValue;
+
+import java.util.ArrayList;
 
 public class AutofillOverlay extends View
 {
@@ -34,9 +37,15 @@ public class AutofillOverlay extends View
         // Physical pixels relative to the Qt window, which is laid out like this overlay
         final Rect windowRect = new Rect();
         String value = "";
+        boolean visible = true;
     }
 
-    private static AutofillOverlay s_overlay;
+    // Set on the UI thread, read from the Qt thread
+    private static volatile AutofillOverlay s_overlay;
+    // Calls that arrive between install() and the creation of the overlay on the UI thread
+    private static final Object s_lock = new Object();
+    private static final ArrayList<OverlayAction> s_pending = new ArrayList<>();
+    private static boolean s_installing = false;
 
     private final SparseArray<Field> m_fields = new SparseArray<>();
     private int m_focusedId = 0;
@@ -51,21 +60,36 @@ public class AutofillOverlay extends View
         setFocusable(false);
     }
 
-    // --- Called from C++ (any thread); everything is posted to the UI thread ------------------------------------
+    // Called from C++ on any thread. Every method posts its work to the UI thread.
 
     public static boolean install(Context context)
     {
-        if (!(context instanceof Activity))
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || !(context instanceof Activity))
             return false;
         final Activity activity = (Activity) context;
+        synchronized (s_lock) {
+            if (s_installing || s_overlay != null)
+                return isEnabled(activity);
+            s_installing = true;
+        }
         activity.runOnUiThread(() -> {
-            if (s_overlay != null)
-                return;
-            s_overlay = new AutofillOverlay(activity);
-            activity.addContentView(s_overlay, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                                                                          ViewGroup.LayoutParams.MATCH_PARENT));
+            final AutofillOverlay overlay = new AutofillOverlay(activity);
+            activity.addContentView(overlay, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                                                                        ViewGroup.LayoutParams.MATCH_PARENT));
+            synchronized (s_lock) {
+                // Replay in order; later calls see s_overlay and are posted behind these
+                for (OverlayAction action : s_pending)
+                    overlay.post(() -> action.run(overlay));
+                s_pending.clear();
+                s_overlay = overlay;
+            }
         });
-        AutofillManager afm = activity.getSystemService(AutofillManager.class);
+        return isEnabled(activity);
+    }
+
+    private static boolean isEnabled(Activity activity)
+    {
+        final AutofillManager afm = activity.getSystemService(AutofillManager.class);
         return afm != null && afm.isEnabled();
     }
 
@@ -122,6 +146,19 @@ public class AutofillOverlay extends View
         });
     }
 
+    public static void visibilityChanged(int id, boolean visible)
+    {
+        post(v -> {
+            Field f = v.m_fields.get(id);
+            if (f == null || f.visible == visible)
+                return;
+            f.visible = visible;
+            AutofillManager afm = v.manager();
+            if (afm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1)
+                afm.notifyViewVisibilityChanged(v, id, visible);
+        });
+    }
+
     public static void valueChanged(int id, String text)
     {
         post(v -> {
@@ -165,8 +202,6 @@ public class AutofillOverlay extends View
         });
     }
 
-    // --- Autofill framework -----------------------------------------------------------------------------------
-
     @Override
     public void onProvideAutofillVirtualStructure(ViewStructure structure, int flags)
     {
@@ -176,17 +211,17 @@ public class AutofillOverlay extends View
             final int id = m_fields.keyAt(i);
             final Field f = m_fields.valueAt(i);
             final ViewStructure child = structure.newChild(base + i);
-            final boolean secret = f.role == ROLE_PASSWORD || f.role == ROLE_NEW_PASSWORD;
             child.setAutofillId(structure.getAutofillId(), id);
             child.setClassName("android.widget.EditText");
             child.setAutofillType(AUTOFILL_TYPE_TEXT);
             child.setAutofillHints(new String[] { hintFor(f.role) });
             child.setInputType(inputTypeFor(f.role));
             child.setAutofillValue(AutofillValue.forText(f.value));
-            child.setDataIsSensitive(secret);
+            // Typed by the user, like any EditText content: do not hand it to the service with the fill request
+            child.setDataIsSensitive(true);
             child.setDimens(f.windowRect.left, f.windowRect.top, 0, 0, f.windowRect.width(),
                             f.windowRect.height());
-            child.setVisibility(VISIBLE);
+            child.setVisibility(f.visible ? VISIBLE : INVISIBLE);
             child.setEnabled(true);
             child.setFocusable(true);
             child.setFocused(id == m_focusedId);
@@ -207,8 +242,6 @@ public class AutofillOverlay extends View
         }
     }
 
-    // --- Helpers ----------------------------------------------------------------------------------------------
-
     private interface OverlayAction
     {
         void run(AutofillOverlay overlay);
@@ -216,12 +249,21 @@ public class AutofillOverlay extends View
 
     private static void post(OverlayAction action)
     {
-        final AutofillOverlay v = s_overlay;
+        AutofillOverlay v = s_overlay;
         if (v == null) {
-            Log.w(TAG, "overlay not installed");
-            return;
+            synchronized (s_lock) {
+                v = s_overlay;
+                if (v == null) {
+                    if (s_installing)
+                        s_pending.add(action);
+                    else
+                        Log.w(TAG, "overlay not installed");
+                    return;
+                }
+            }
         }
-        v.post(() -> action.run(v));
+        final AutofillOverlay overlay = v;
+        overlay.post(() -> action.run(overlay));
     }
 
     private Rect toScreen(Rect windowRect)

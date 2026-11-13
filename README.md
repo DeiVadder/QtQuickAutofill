@@ -17,7 +17,7 @@ TextField {
 TextField {
     echoMode: TextInput.Password
     Autofill.role: Autofill.Password
-    Autofill.onFilled: (value) => console.log("filled by the password manager")
+    Autofill.onFilled: (value) => console.log("filled by the password manager")   // Android only
 }
 Button {
     text: "Sign in"
@@ -39,15 +39,31 @@ Button {
 
 | | Android | iOS |
 |---|---|---|
-| Fields recognised as username/password | ✅ verified (Pixel 3, Android 12, Google autofill) | ✅ verified (iPhone 13, iOS 27) |
-| Suggestions appear on focus | ✅ verified (autofill service answers, see *Android notes*) | ✅ verified (QuickType bar shows "Passwords") |
-| Picking a suggestion fills the Qt fields | ⚠️ not yet verified | ⚠️ not yet verified |
-| "Save password?" after sign-in | ✅ verified (`AutofillService.commit()`) | ❌ needs Associated Domains, see below |
-| Desktop | no-op (compiles, does nothing) | |
+| Fields recognised as username/password | Yes, verified (Pixel 3, Android 12, Google autofill) | Yes, verified (iPhone 13, iOS 27) |
+| Suggestions appear on focus | Yes, verified (autofill service answers, see *Android notes*) | Yes, verified (QuickType bar shows "Passwords") |
+| Picking a suggestion fills the Qt fields | Not verified yet | Not verified yet |
+| "Save password?" after sign-in | Yes, verified (`AutofillService.commit()`) | No, needs Associated Domains, see below |
+| Desktop | No-op (compiles, does nothing) | |
 
 Roles: `Username`, `Password`, `NewPassword`, `Email`, `OneTimeCode`.
 
-Tested with Qt 6.8 (Android arm64, iOS arm64, macOS). Requires Qt ≥ 6.5 and CMake ≥ 3.21.
+Tested with Qt 6.8 (Android arm64, iOS arm64, macOS). Requires Qt ≥ 6.5 and CMake ≥ 3.21. On Android the autofill
+framework needs Android 8.0 (API 26); on older versions the library logs a warning and does nothing.
+
+## What it does not do
+
+**No biometrics API.** QtQuickAutofill only tells the platform password manager which fields hold a username or
+password. It has no API for Face ID, Touch ID or fingerprint, and it does not store credentials.
+
+- Any biometric check you see while filling comes from the password manager, not from this library. iOS normally asks
+  for Face ID or the passcode before it inserts a saved password, and Android password managers may ask for the screen
+  lock. Your app does not see or control that check.
+- For "sign in with Face ID / fingerprint" using credentials that your app stores itself, use the platform APIs
+  directly:
+  - iOS: Keychain items with `SecAccessControl` (`.biometryCurrentSet` or `.userPresence`) and `LocalAuthentication`.
+  - Android: a Keystore key with `setUserAuthenticationRequired(true)` and `BiometricPrompt` (API 28+).
+
+  QtKeychain does not expose these access-control options either, so you need a small amount of native code.
 
 ## Integration
 
@@ -70,7 +86,9 @@ QtQuickAutofill is a static QML module, so import its plugin once in `main.cpp`:
 Q_IMPORT_QML_PLUGIN(QtQuickAutofillPlugin)
 ```
 
-The fields only need a `text` property and a `textChanged` signal, so `TextInput` and `TextField` both work.
+Put `Autofill.role` on the item that receives keyboard focus and has a `text` property and a `textChanged` signal,
+so `TextInput` and `TextField` both work. A wrapper component (`Item { property alias text: input.text }`) does not:
+attach the role to the inner `TextInput`/`TextField` instead.
 
 ## How it works
 
@@ -88,8 +106,18 @@ Notes:
   request from the keyboard. Gboard sends it for Qt's own input view, not for the virtual field, so nothing shows up.
   `AutofillService.requestOnFocus` (default `true`) therefore also sends an explicit `requestAutofill()` on focus,
   which the autofill service answers directly. Set it to `false` if your autofill service behaves differently.
+- **"Content can't be autofilled" message.** Because of the explicit request, an autofill service that has nothing
+  to offer may say so (Google shows a short message at the bottom of the screen). It is shown on focus changes only,
+  not when the app returns to the foreground. If this bothers you, set `requestOnFocus: false` and call
+  `AutofillService.requestFill(field)` yourself, e.g. from a "Use saved sign-in" button.
 - Credentials are saved per app (package name). Several accounts are fine; the user picks one.
-- Field bounds are kept up to date while the field has focus (scrolling, keyboard), using `QQuickWindow::afterAnimating`.
+- When a field gets focus, the bounds and visibility of all fields are sent to the framework. Fields that are
+  invisible or outside the window (e.g. another page of a `SwipeView`) are reported as invisible and never filled.
+  While a field has focus, scrolling updates the stored bounds, but the suggestion popup that is already open is not
+  moved.
+- `Autofill.onFilled` is emitted when the platform fills a field.
+- If Android recreates the activity while the Qt part keeps running, the overlay is not reinstalled. Qt handles
+  configuration changes itself by default, so this only matters with custom `configChanges`.
 
 ### iOS
 
@@ -106,6 +134,8 @@ Notes:
   [Associated Domains](https://developer.apple.com/documentation/xcode/supporting-associated-domains)
   (`webcredentials:your.domain`) plus an `apple-app-site-association` file on that domain. `commit()` is a no-op on iOS.
 - For the password field, iOS already reacts to `secureTextEntry`, which Qt sets for `echoMode: TextInput.Password`.
+- iOS inserts the chosen value like typed text, so `Autofill.onFilled` is not emitted on iOS; use `textChanged`.
+  UIKit only knows the focused field, so it probably fills only that one (username and password one after the other).
 
 ## Example and tests
 
