@@ -28,6 +28,8 @@ Button {
 }
 ```
 
+<img src="docs/ios-quicktype-passwords.png" width="270" alt="iOS shows the Passwords key in the QuickType bar for a Qt Quick username field">
+&nbsp;
 <img src="docs/android-save-prompt.png" width="270" alt="Android offers to save the credentials typed into Qt Quick fields">
 
 > **Status: experimental (0.1).** It works on the devices listed below, but it relies on platform behaviour and,
@@ -37,8 +39,8 @@ Button {
 
 | | Android | iOS |
 |---|---|---|
-| Fields recognised as username/password | ✅ verified (Pixel 3, Android 12, Google autofill) | ✅ verified with the prototype this library grew out of (iPhone 13, iOS 27); this build is compile-tested only |
-| Suggestions appear on focus | ✅ verified (autofill service answers, see *Android notes*) | ✅ prototype: QuickType bar shows password suggestions |
+| Fields recognised as username/password | ✅ verified (Pixel 3, Android 12, Google autofill) | ✅ verified (iPhone 13, iOS 27) |
+| Suggestions appear on focus | ✅ verified (autofill service answers, see *Android notes*) | ✅ verified (QuickType bar shows "Passwords") |
 | Picking a suggestion fills the Qt fields | ⚠️ not yet verified | ⚠️ not yet verified |
 | "Save password?" after sign-in | ✅ verified (`AutofillService.commit()`) | ❌ needs Associated Domains, see below |
 | Desktop | no-op (compiles, does nothing) | |
