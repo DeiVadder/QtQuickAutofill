@@ -49,6 +49,21 @@ Roles: `Username`, `Password`, `NewPassword`, `Email`, `OneTimeCode`.
 
 Tested with Qt 6.8 (Android arm64, iOS arm64, macOS). Requires Qt ≥ 6.5 and CMake ≥ 3.21.
 
+## What it does not do
+
+**No biometrics API.** QtQuickAutofill only tells the platform password manager which fields hold a username or
+password. It has no API for Face ID, Touch ID or fingerprint, and it does not store credentials.
+
+- Any biometric check you see while filling comes from the password manager, not from this library. iOS normally asks
+  for Face ID or the passcode before it inserts a saved password, and Android password managers may ask for the screen
+  lock. Your app does not see or control that check.
+- For "sign in with Face ID / fingerprint" using credentials that your app stores itself, use the platform APIs
+  directly:
+  - iOS: Keychain items with `SecAccessControl` (`.biometryCurrentSet` or `.userPresence`) and `LocalAuthentication`.
+  - Android: a Keystore key with `setUserAuthenticationRequired(true)` and `BiometricPrompt` (API 28+).
+
+  QtKeychain does not expose these access-control options either, so you need a small amount of native code.
+
 ## Integration
 
 Add the library to your CMake project (e.g. as a git submodule or with `FetchContent`):
