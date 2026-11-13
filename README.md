@@ -39,11 +39,11 @@ Button {
 
 | | Android | iOS |
 |---|---|---|
-| Fields recognised as username/password | ✅ verified (Pixel 3, Android 12, Google autofill) | ✅ verified (iPhone 13, iOS 27) |
-| Suggestions appear on focus | ✅ verified (autofill service answers, see *Android notes*) | ✅ verified (QuickType bar shows "Passwords") |
-| Picking a suggestion fills the Qt fields | ⚠️ not yet verified | ⚠️ not yet verified |
-| "Save password?" after sign-in | ✅ verified (`AutofillService.commit()`) | ❌ needs Associated Domains, see below |
-| Desktop | no-op (compiles, does nothing) | |
+| Fields recognised as username/password | Yes, verified (Pixel 3, Android 12, Google autofill) | Yes, verified (iPhone 13, iOS 27) |
+| Suggestions appear on focus | Yes, verified (autofill service answers, see *Android notes*) | Yes, verified (QuickType bar shows "Passwords") |
+| Picking a suggestion fills the Qt fields | Not verified yet | Not verified yet |
+| "Save password?" after sign-in | Yes, verified (`AutofillService.commit()`) | No, needs Associated Domains, see below |
+| Desktop | No-op (compiles, does nothing) | |
 
 Roles: `Username`, `Password`, `NewPassword`, `Email`, `OneTimeCode`.
 
