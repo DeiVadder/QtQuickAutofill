@@ -4,8 +4,6 @@
 
 #include <QQuickWindow>
 
-// --- Autofill --------------------------------------------------------------------------------------------------
-
 AutofillAttached *Autofill::qmlAttachedProperties(QObject *object)
 {
     auto *item = qobject_cast<QQuickItem *>(object);
@@ -14,8 +12,6 @@ AutofillAttached *Autofill::qmlAttachedProperties(QObject *object)
     }
     return new AutofillAttached(item);
 }
-
-// --- AutofillAttached ------------------------------------------------------------------------------------------
 
 AutofillAttached::AutofillAttached(QQuickItem *item)
     : QObject(item)
@@ -124,8 +120,6 @@ void AutofillAttached::trackWindow(QQuickWindow *window)
             connect(m_window, &QQuickWindow::afterAnimating, this, &AutofillAttached::onAfterAnimating);
     }
 }
-
-// --- AutofillService -------------------------------------------------------------------------------------------
 
 namespace {
 AutofillService *s_service = nullptr;

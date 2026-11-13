@@ -51,7 +51,7 @@ public class AutofillOverlay extends View
         setFocusable(false);
     }
 
-    // --- Called from C++ (any thread); everything is posted to the UI thread ------------------------------------
+    // Called from C++ on any thread. Every method posts its work to the UI thread.
 
     public static boolean install(Context context)
     {
@@ -165,8 +165,6 @@ public class AutofillOverlay extends View
         });
     }
 
-    // --- Autofill framework -----------------------------------------------------------------------------------
-
     @Override
     public void onProvideAutofillVirtualStructure(ViewStructure structure, int flags)
     {
@@ -206,8 +204,6 @@ public class AutofillOverlay extends View
             nativeAutofilled(id, f.value);
         }
     }
-
-    // --- Helpers ----------------------------------------------------------------------------------------------
 
     private interface OverlayAction
     {
