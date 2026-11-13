@@ -1,9 +1,17 @@
 # SPDX-License-Identifier: MIT
 qt_add_library(QtQuickAutofill STATIC)
 
+# The module directory has to end in the URI, otherwise qmllint, qmlls and qmlcachegen do not find it
+if(QT_QML_OUTPUT_DIRECTORY)
+    set(qtquickautofill_qml_dir "${QT_QML_OUTPUT_DIRECTORY}/QtQuickAutofill")
+else()
+    set(qtquickautofill_qml_dir "${CMAKE_BINARY_DIR}/QtQuickAutofill")
+endif()
+
 qt_add_qml_module(QtQuickAutofill
     URI QtQuickAutofill
     VERSION 1.0
+    OUTPUT_DIRECTORY "${qtquickautofill_qml_dir}"
     SOURCES
         autofill.h autofill.cpp
         autofillbackend.h autofillbackend.cpp

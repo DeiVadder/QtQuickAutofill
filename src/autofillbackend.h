@@ -23,8 +23,10 @@ public:
     {
         (void)id; (void)focused; (void)windowRect; (void)requestFill;
     }
-    /// The focused field moved, e.g. while scrolling.
+    /// Field \a id moved, e.g. while scrolling.
     virtual void boundsChanged(int id, const QRect &windowRect) { (void)id; (void)windowRect; }
+    /// Field \a id became visible or hidden (hidden: invisible or outside the window).
+    virtual void visibilityChanged(int id, bool visible) { (void)id; (void)visible; }
     /// The user changed the text of field \a id.
     virtual void valueChanged(int id, const QString &value) { (void)id; (void)value; }
     virtual void commit() {}

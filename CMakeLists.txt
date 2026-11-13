@@ -12,6 +12,11 @@ option(QTQUICKAUTOFILL_BUILD_TESTS "Build the unit tests (desktop only)" ${PROJE
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick)
 qt_standard_project_setup(REQUIRES 6.5)
 
+# Standalone build: put all QML modules (library, example) under one import path so that qmllint finds them
+if(PROJECT_IS_TOP_LEVEL AND NOT QT_QML_OUTPUT_DIRECTORY)
+    set(QT_QML_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/qml")
+endif()
+
 include(cmake/QtQuickAutofillAndroid.cmake)
 
 add_subdirectory(src)

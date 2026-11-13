@@ -23,7 +23,8 @@ class AutofillBackend;
     TextField { echoMode: TextInput.Password; Autofill.role: Autofill.Password }
     \endcode
 
-    Works with any item that has a \c text property and a \c textChanged signal (TextInput, TextField).
+    Attach it to the item that receives keyboard focus and has a \c text property and a \c textChanged signal
+    (TextInput, TextField). Attaching it to a wrapper whose inner TextInput has the focus does not work.
 */
 class Autofill : public QObject
 {
@@ -54,7 +55,7 @@ class AutofillAttached : public QObject
     Q_PROPERTY(Autofill::Role role READ role WRITE setRole NOTIFY roleChanged FINAL)
 
 public:
-    explicit AutofillAttached(QQuickItem *item);
+    explicit AutofillAttached(QObject *object);
     ~AutofillAttached() override;
 
     Autofill::Role role() const { return m_role; }
@@ -63,8 +64,10 @@ public:
     QQuickItem *item() const { return m_item; }
     int fieldId() const { return m_id; }
 
-    /// Bounds of the field in physical pixels, relative to its window.
+    /// Bounds of the field in physical pixels, relative to its window (includes scale and rotation).
     QRect windowRect() const;
+    /// True if the field is visible and at least partly inside its window.
+    bool isShown() const;
 
     /// Called by the service when the platform delivers a value for this field.
     void applyAutofill(const QString &value);
@@ -74,11 +77,15 @@ signals:
     /// The platform filled this field with \a value.
     void filled(const QString &value);
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private slots:
     void onTextChanged();
 
 private:
     void onActiveFocusChanged();
+    void onVisibleChanged();
     void onAfterAnimating();
     void trackWindow(QQuickWindow *window);
 
@@ -89,6 +96,7 @@ private:
     int m_id{0};
     QRect m_lastRect;
     bool m_applying{false};
+    Qt::FocusReason m_focusReason{Qt::OtherFocusReason};
 };
 
 /*!
@@ -103,7 +111,7 @@ class AutofillService : public QObject
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
-    Q_PROPERTY(bool available READ isAvailable CONSTANT FINAL)
+    Q_PROPERTY(bool available READ isAvailable NOTIFY availableChanged FINAL)
     Q_PROPERTY(bool requestOnFocus READ requestOnFocus WRITE setRequestOnFocus NOTIFY requestOnFocusChanged FINAL)
 
 public:
@@ -112,7 +120,8 @@ public:
     static AutofillService *instance();
     static AutofillService *create(QQmlEngine *, QJSEngine *);
 
-    /// Replaces the platform backend, e.g. with a test double. Takes ownership.
+    /// Replaces the platform backend, e.g. with a test double. Takes ownership. Fields that are already registered
+    /// are announced to the new backend.
     static void setBackend(std::unique_ptr<AutofillBackend> backend);
 
     bool isAvailable() const;
@@ -135,14 +144,17 @@ public:
     void unregisterField(int id);
     AutofillBackend *backend() const { return m_backend.get(); }
     AutofillAttached *field(int id) const { return m_fields.value(id); }
+    /// Sends the current bounds and visibility of all fields to the backend.
+    void syncFields();
     /// Called by a backend (on the GUI thread) when the platform fills field \a id.
     void deliverAutofill(int id, const QString &value);
 
 signals:
+    void availableChanged();
     void requestOnFocusChanged();
 
 private:
-    explicit AutofillService(QObject *parent = nullptr);
+    explicit AutofillService(std::unique_ptr<AutofillBackend> backend);
 
     std::unique_ptr<AutofillBackend> m_backend;
     QHash<int, AutofillAttached *> m_fields;
